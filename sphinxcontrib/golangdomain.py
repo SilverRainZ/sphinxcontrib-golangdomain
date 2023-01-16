@@ -15,9 +15,9 @@ import string
 from docutils import nodes
 from docutils.parsers.rst import directives, Directive
 
-from sphinx import addnodes
+from sphinx import addnodes, version_info
 from sphinx.roles import XRefRole
-from sphinx.locale import l_, _
+from sphinx.locale import _
 from sphinx.directives import ObjectDescription
 from sphinx.domains import Domain, ObjType, Index
 from sphinx.util.nodes import make_refnode
@@ -32,8 +32,8 @@ go_func_sig_re = re.compile(
     r'''^\s* func \s*              # func (ignore)
          (?: \((.*)\) )? \s*       # struct/interface name
          ([\w.]+)                  # thing name
-         \( ([\w\s\[\],]*) \) \s*  # arguments
-         ([\w\s\[\](),]*) \s* $    # optionally return type
+         \( ([\w\s\[\](){},.*]*) \) \s*  # arguments
+         ([\w\s\[\](){},.*]*) \s* $    # optionally return type
     ''', re.VERBOSE)
 
 go_sig_re = re.compile(
@@ -46,17 +46,24 @@ go_func_split_re = re.compile(
     ''', re.VERBOSE)
 
 
+def _index_tuple(text, target, name):
+    if version_info < (1, 4):
+        return ("single", text, target, name)
+    else:
+        return ("single", text, target, name, None)
+
+
 class GolangObject(ObjectDescription):
     """
     Description of a Golang language object.
     """
     doc_field_types = [
-        TypedField('parameter', label=l_('Parameters'),
+        TypedField('parameter', label=_('Parameters'),
                    names=('param', 'parameter', 'arg', 'argument'),
                    typerolename='type', typenames=('type',)),
-        Field('returnvalue', label=l_('Returns'), has_arg=False,
+        Field('returnvalue', label=_('Returns'), has_arg=False,
               names=('returns', 'return')),
-        Field('returntype', label=l_('Return type'), has_arg=False,
+        Field('returntype', label=_('Return type'), has_arg=False,
               names=('rtype',)),
     ]
 
@@ -225,7 +232,7 @@ class GolangObject(ObjectDescription):
 
         indextext = self._get_index_text(name)
         if indextext:
-            self.indexnode['entries'].append(('single', indextext, name, name))
+            self.indexnode["entries"].append(_index_tuple(indextext, name, name))
 
 
 class GolangPackage(Directive):
@@ -266,8 +273,9 @@ class GolangPackage(Directive):
         # pkgindex currently
         if not noindex:
             indextext = _('%s (package)') % pkgname
-            inode = addnodes.index(entries=[('single', indextext,
-                                             'package-' + pkgname, pkgname)])
+            inode = addnodes.index(
+                entries=[_index_tuple(indextext, "package-" + pkgname, pkgname)]
+            )
             ret.append(inode)
         return ret
 
@@ -315,8 +323,8 @@ class GolangPackageIndex(Index):
     """
 
     name = 'pkgindex'
-    localname = l_('Golang Package Index')
-    shortname = l_('packages')
+    localname = _('Golang Package Index')
+    shortname = _('packages')
 
     def generate(self, docnames=None):
         content = {}
@@ -383,11 +391,11 @@ class GolangDomain(Domain):
     name = 'go'
     label = 'Golang'
     object_types = {
-        'function': ObjType(l_('function'), 'func'),
-        'package':  ObjType(l_('package'),  'pkg'),
-        'type':     ObjType(l_('function'), 'type'),
-        'var':      ObjType(l_('variable'), 'data'),
-        'const':    ObjType(l_('const'),    'data'),
+        'function': ObjType(_('function'), 'func'),
+        'package':  ObjType(_('package'),  'pkg'),
+        'type':     ObjType(_('function'), 'type'),
+        'var':      ObjType(_('variable'), 'data'),
+        'const':    ObjType(_('const'),    'data'),
     }
 
     directives = {
@@ -446,7 +454,8 @@ class GolangDomain(Domain):
             else:
                 fullname = "(%s.%s) %s" % (pkgname, typ, funcname)
         
-        return fullname, self.data['functions'][fullname][0]
+        f = self.data["functions"].get(fullname)
+        return fullname, f[0] if f else None
 
 
     def _find_obj(self, env, pkgname, name, typ):
